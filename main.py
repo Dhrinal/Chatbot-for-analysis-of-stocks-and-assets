@@ -8,6 +8,7 @@ warnings.filterwarnings('ignore')
 
 # Import our chatbot modules
 from chatbot.core import MultiAssetAnalysisChatbot
+from config import INTERNATIONAL_MARKETS
 
 # Page configuration
 st.set_page_config(
@@ -26,15 +27,24 @@ if 'chatbot' not in st.session_state:
 # Sidebar for inputs
 st.sidebar.header("Asset Analysis Parameters")
 
-# Asset type selection
-asset_type = st.sidebar.selectbox(
-    "Asset Type:",
-    ["Stock", "Cryptocurrency", "Forex", "Commodity", "ETF", "Index", "Bond"]
+# Country selection
+countries = list(INTERNATIONAL_MARKETS.keys())
+selected_country = st.sidebar.selectbox(
+    "Market/Country:",
+    countries,
+    index=0  # Default to US
 )
 
-# Dynamic symbol examples based on asset type
+# Asset type selection - updated to include International Stocks
+asset_type = st.sidebar.selectbox(
+    "Asset Type:",
+    ["Stock", "International Stock", "Cryptocurrency", "Forex", "Commodity", "ETF", "Index", "Bond"]
+)
+
+# Dynamic symbol examples based on asset type and country
 symbol_examples = {
-    "Stock": "AAPL, TSLA, MSFT, GOOGL",
+    "Stock": INTERNATIONAL_MARKETS[selected_country]["examples"],
+    "International Stock": INTERNATIONAL_MARKETS[selected_country]["examples"],
     "Cryptocurrency": "BTC-USD, ETH-USD, ADA-USD, BNB-USD",
     "Forex": "EURUSD=X, GBPUSD=X, USDJPY=X",
     "Commodity": "GC=F (Gold), SI=F (Silver), CL=F (Oil)",
@@ -44,24 +54,34 @@ symbol_examples = {
 }
 
 
-# Get default symbol based on asset type
-def get_default_symbol(asset_type):
-    defaults = {
-        "Stock": "AAPL",
-        "Cryptocurrency": "BTC-USD",
-        "Forex": "EURUSD=X",
-        "Commodity": "GC=F",
-        "ETF": "SPY",
-        "Index": "^GSPC",
-        "Bond": "^TNX"
-    }
-    return defaults.get(asset_type, "AAPL")
+def get_default_symbol(asset_type, country):
+    """Get default symbol based on asset type and country"""
+    if asset_type in ["Stock", "International Stock"]:
+        return INTERNATIONAL_MARKETS[country]["examples"][0]
+    else:
+        defaults = {
+            "Cryptocurrency": "BTC-USD",
+            "Forex": "EURUSD=X",
+            "Commodity": "GC=F",
+            "ETF": "SPY",
+            "Index": "^GSPC",
+            "Bond": "^TNX"
+        }
+        return defaults.get(asset_type, "AAPL")
 
 
-symbol = st.sidebar.text_input(
-    f"Symbol ({symbol_examples[asset_type]}):",
-    get_default_symbol(asset_type)
-)
+# Symbol input with country-specific formatting
+if asset_type in ["Stock", "International Stock"]:
+    symbol = st.sidebar.selectbox(
+        f"Symbol ({selected_country} Market):",
+        INTERNATIONAL_MARKETS[selected_country]["examples"],
+        index=0
+    )
+else:
+    symbol = st.sidebar.text_input(
+        f"Symbol ({symbol_examples[asset_type]}):",
+        get_default_symbol(asset_type, selected_country)
+    )
 
 # Enhanced period selection with daily options
 period = st.sidebar.selectbox(
@@ -74,6 +94,12 @@ period = st.sidebar.selectbox(
 if period in ["1d", "5d"]:
     st.sidebar.warning("⚠️ Short periods may not work well with technical indicators")
 
+# Market information
+st.sidebar.markdown("---")
+st.sidebar.markdown(f"**🌍 {selected_country} Market Info**")
+st.sidebar.markdown(f"Currency: {INTERNATIONAL_MARKETS[selected_country]['currency']}")
+st.sidebar.markdown(f"Suffix: {INTERNATIONAL_MARKETS[selected_country]['suffix']}")
+
 # Main interface
 col1, col2 = st.columns([2, 1])
 
@@ -81,13 +107,21 @@ with col1:
     st.subheader("Chat Interface")
     user_input = st.text_input(
         "Ask about asset analysis:",
-        placeholder="e.g., Show technical analysis, Predict price, Fundamental data"
+        placeholder=f"e.g., Show technical analysis, Predict price, Fundamental data for {selected_country} market"
     )
 
     if user_input:
-        with st.spinner(f"Analyzing {asset_type} data..."):
+        with st.spinner(f"Analyzing {asset_type} data from {selected_country}..."):
             try:
-                response, charts = st.session_state.chatbot.process_query(user_input, asset_type, symbol, period)
+                # Handle international stocks
+                if asset_type == "International Stock":
+                    actual_asset_type = "Stock"
+                else:
+                    actual_asset_type = asset_type
+
+                response, charts = st.session_state.chatbot.process_query(
+                    user_input, actual_asset_type, symbol, period, selected_country
+                )
 
                 st.markdown("### 🤖 Analysis Results")
                 st.markdown(response)
@@ -99,7 +133,6 @@ with col1:
 
             except Exception as e:
                 st.error(f"Error analyzing {asset_type}: {str(e)}")
-                # Show more detailed error in expander for debugging
                 with st.expander("Debug Details"):
                     st.code(traceback.format_exc())
 
@@ -109,7 +142,10 @@ with col2:
     if st.button("📈 Technical Analysis"):
         with st.spinner("Running technical analysis..."):
             try:
-                analysis = st.session_state.chatbot.technical_analysis(asset_type, symbol, period)
+                actual_asset_type = "Stock" if asset_type == "International Stock" else asset_type
+                analysis = st.session_state.chatbot.technical_analysis(
+                    actual_asset_type, symbol, period, selected_country
+                )
                 st.markdown("### Technical Analysis")
                 st.markdown(analysis)
             except Exception as e:
@@ -118,16 +154,20 @@ with col2:
     if st.button("💰 Current Price"):
         with st.spinner("Fetching current price..."):
             try:
-                data = st.session_state.chatbot.data_fetcher.get_asset_data(asset_type, symbol, "1d")
+                actual_asset_type = "Stock" if asset_type == "International Stock" else asset_type
+                data = st.session_state.chatbot.data_fetcher.get_asset_data(
+                    actual_asset_type, symbol, "1d", selected_country
+                )
                 current_price = data['Close'].iloc[-1]
                 prev_close = data['Close'].iloc[-2] if len(data) > 1 else current_price
                 change = current_price - prev_close
                 change_pct = (change / prev_close) * 100
 
-                # Simple price display without complex formatting
+                currency_symbol = INTERNATIONAL_MARKETS[selected_country]["currency"]
+
                 st.metric(
-                    label=f"{symbol} Current Price",
-                    value=f"${current_price:.2f}",
+                    label=f"{symbol} Current Price ({currency_symbol})",
+                    value=f"{current_price:.2f}",
                     delta=f"{change:+.2f} ({change_pct:+.2f}%)"
                 )
             except Exception as e:
@@ -136,7 +176,10 @@ with col2:
     if st.button("📊 Fundamental Data"):
         with st.spinner("Fetching fundamental data..."):
             try:
-                fundamental = st.session_state.chatbot.get_fundamental_data(asset_type, symbol)
+                actual_asset_type = "Stock" if asset_type == "International Stock" else asset_type
+                fundamental = st.session_state.chatbot.get_fundamental_data(
+                    actual_asset_type, symbol, selected_country
+                )
                 st.markdown("### Fundamental Analysis")
                 st.markdown(fundamental)
             except Exception as e:
@@ -145,29 +188,35 @@ with col2:
     if st.button("🔮 Price Prediction"):
         with st.spinner("Generating prediction..."):
             try:
-                prediction = st.session_state.chatbot.price_prediction(asset_type, symbol)
+                actual_asset_type = "Stock" if asset_type == "International Stock" else asset_type
+                prediction = st.session_state.chatbot.price_prediction(
+                    actual_asset_type, symbol, selected_country
+                )
                 st.markdown("### Price Prediction")
                 st.markdown(prediction)
             except Exception as e:
                 st.error(f"Error generating prediction: {str(e)}")
 
-    # Asset-specific actions
-    if asset_type == "Cryptocurrency":
-        if st.button("₿ Crypto Metrics"):
-            with st.spinner("Fetching crypto metrics..."):
+    # Market-specific actions
+    if asset_type in ["Stock", "International Stock"]:
+        if st.button("🌍 Market Overview"):
+            with st.spinner(f"Getting {selected_country} market overview..."):
                 try:
-                    metrics = st.session_state.chatbot.get_crypto_metrics(symbol)
-                    st.markdown("### Cryptocurrency Metrics")
-                    st.markdown(metrics)
+                    overview = st.session_state.chatbot.get_market_overview(selected_country)
+                    st.markdown(f"### {selected_country} Market Overview")
+                    st.markdown(overview)
                 except Exception as e:
-                    st.error(f"Error fetching crypto metrics: {str(e)}")
+                    st.error(f"Error fetching market overview: {str(e)}")
 
 # Display recent data
 st.sidebar.markdown("---")
 if st.sidebar.button("Show Recent Data"):
     with st.spinner("Loading recent data..."):
         try:
-            data = st.session_state.chatbot.data_fetcher.get_asset_data(asset_type, symbol, "1mo")
+            actual_asset_type = "Stock" if asset_type == "International Stock" else asset_type
+            data = st.session_state.chatbot.data_fetcher.get_asset_data(
+                actual_asset_type, symbol, "1mo", selected_country
+            )
             st.sidebar.markdown(f"**Recent {symbol} Data (Last 5 days)**")
             display_data = data.tail()[['Open', 'High', 'Low', 'Close']]
             if 'Volume' in data.columns:
