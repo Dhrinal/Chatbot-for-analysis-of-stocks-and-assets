@@ -28,8 +28,7 @@ class MultiAssetAnalysisChatbot:
             'market': r'(market overview|country|economy|{})'.format('|'.join(INTERNATIONAL_MARKETS.keys()))
         }
 
-    def process_query(self, query: str, asset_type: str, symbol: str, period: str = "1y", country: str = "US") -> Tuple[
-        str, List]:
+    def process_query(self, query: str, asset_type: str, symbol: str, period: str = "1y", country: str = "US") -> Tuple[str, List]:
         """Process user query for any asset type with country support"""
         intent = self._classify_intent(query)
         charts = []
@@ -124,8 +123,7 @@ class MultiAssetAnalysisChatbot:
 📅 **Last Updated:** {data.index[-1].strftime('%Y-%m-%d %H:%M') if hasattr(data.index[-1], 'strftime') else 'N/A'}
 """
 
-    def _get_technical_analysis(self, data: pd.DataFrame, asset_type: str, symbol: str, country: str) -> Tuple[
-        str, List]:
+    def _get_technical_analysis(self, data: pd.DataFrame, asset_type: str, symbol: str, country: str) -> Tuple[str, List]:
         """Get technical analysis for any asset"""
         analysis = self.technical_analyzer.analyze(data)
         charts = self.technical_analyzer.create_technical_charts(data, symbol)
@@ -156,18 +154,27 @@ class MultiAssetAnalysisChatbot:
 
     def _get_trend_analysis(self, data: pd.DataFrame, asset_type: str, symbol: str, country: str) -> Tuple[str, List]:
         """Get trend analysis for any asset"""
-        trend_response = self.technical_analyzer.trend_analysis(data, symbol)
-        trend_chart = self.technical_analyzer.create_trend_chart(data, symbol)
-        return trend_response, [trend_chart]
+        trend_response = self.technical_analyzer.generate_trend_report(data, symbol)
+        trend_chart = self.technical_analyzer.create_technical_charts(data, symbol)
+        return trend_response, trend_chart
 
     def _get_volume_analysis(self, data: pd.DataFrame, asset_type: str, symbol: str, country: str) -> str:
         """Get volume analysis for any asset"""
-        return self.technical_analyzer.volume_analysis(data, symbol)
+        return self.technical_analyzer._analyze_volume_trends(data)
 
-    def _get_historical_analysis(self, data: pd.DataFrame, asset_type: str, symbol: str, period: str,
-                                 country: str) -> str:
+    def _get_historical_analysis(self, data: pd.DataFrame, asset_type: str, symbol: str, period: str, country: str) -> str:
         """Get historical analysis for any asset"""
-        return self.technical_analyzer.historical_analysis(data, symbol, period)
+        return f"""
+**📊 Historical Performance for {symbol} ({asset_type}) - {country} Market:**
+
+**Period:** {period}
+**Total Return:** {((data['Close'].iloc[-1] - data['Close'].iloc[0]) / data['Close'].iloc[0]) * 100:.2f}%
+**Volatility:** {data['Close'].pct_change().std() * 100:.2f}%
+**Highest Price:** ${data['High'].max():.2f}
+**Lowest Price:** ${data['Low'].min():.2f}
+
+*Analysis based on {len(data)} trading periods*
+"""
 
     def _get_market_overview(self, country: str) -> str:
         """Get market overview for a specific country"""
