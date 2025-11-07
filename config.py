@@ -1,8 +1,8 @@
 ﻿# API Keys and Configuration
-ALPHA_VANTAGE_API_KEY = "N9URSA8K2V0ME92W"
-NEWS_API_KEY = "6af837e827114d768575244fbd354cee"
-ALPHA_VANTAGE_NEWS_KEY = "T4WXAUM70XYISYJV"
-FINNHUB_API_KEY = "d3v2c2hr01qt2ctnocogd3v2c2hr01qt2ctnocp0"
+ALPHA_VANTAGE_API_KEY = " "
+NEWS_API_KEY = " "
+ALPHA_VANTAGE_NEWS_KEY = " "
+FINNHUB_API_KEY = " "
 
 # Model Settings
 SENTIMENT_MODEL = "cardiffnlp/twitter-roberta-base-sentiment-latest"
